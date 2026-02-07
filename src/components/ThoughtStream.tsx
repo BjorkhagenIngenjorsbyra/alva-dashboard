@@ -22,7 +22,7 @@ export function ThoughtStream({ activeTask, thoughts, tasks }: ThoughtStreamProp
   useEffect(() => {
     if (containerRef.current && thoughts.length > prevThoughtsLength.current) {
       containerRef.current.scrollTo({
-        top: containerRef.current.scrollHeight,
+        top: 0,
         behavior: 'smooth',
       })
     }
@@ -71,7 +71,7 @@ export function ThoughtStream({ activeTask, thoughts, tasks }: ThoughtStreamProp
             <ThoughtCard
               key={thought.id}
               thought={thought}
-              isNew={index === displayThoughts.length - 1}
+              isNew={index === 0}
             />
           ))
         )}

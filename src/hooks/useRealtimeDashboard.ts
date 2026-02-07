@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Task, ThoughtLog, ActivityLog, TaskStep, AlvaStatus, DashboardStats } from '@/lib/types'
 import { getMinutesSince } from '@/utils/formatters'
@@ -25,8 +25,16 @@ export function useRealtimeDashboard(): UseDashboardReturn {
   const [activities, setActivities] = useState<ActivityLog[]>([])
   const [taskSteps, setTaskSteps] = useState<TaskStep[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [, setTick] = useState(0)
 
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((t) => t + 1)
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true)
@@ -39,7 +47,7 @@ export function useRealtimeDashboard(): UseDashboardReturn {
       supabase
         .from('thought_log')
         .select('*')
-        .order('created_at', { ascending: true }),
+        .order('created_at', { ascending: false }),
       supabase
         .from('activity_log')
         .select('*')
@@ -97,7 +105,7 @@ export function useRealtimeDashboard(): UseDashboardReturn {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'thought_log' },
         (payload) => {
-          setThoughts((prev) => [...prev, payload.new as ThoughtLog])
+          setThoughts((prev) => [payload.new as ThoughtLog, ...prev])
         }
       )
       .subscribe()
@@ -172,7 +180,7 @@ export function useRealtimeDashboard(): UseDashboardReturn {
       .reduce((acc, t) => acc + (t.estimated_minutes || 0), 0),
   }
 
-  const createTask = async (taskData: Partial<Task>) => {
+  const createTask = useCallback(async (taskData: Partial<Task>) => {
     await supabase.from('tasks').insert({
       title: taskData.title,
       description: taskData.description || null,
@@ -182,11 +190,14 @@ export function useRealtimeDashboard(): UseDashboardReturn {
       assigned_to: 'alva',
       status: 'pending',
     })
-  }
+  }, [supabase])
 
-  const deleteTask = async (taskId: string) => {
-    await supabase.from('tasks').delete().eq('id', taskId)
-  }
+  const deleteTask = useCallback(async (taskId: string) => {
+    const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+    if (error) {
+      console.error('Delete failed:', error)
+    }
+  }, [supabase])
 
   return {
     tasks,
