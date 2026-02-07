@@ -2,7 +2,7 @@ export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'c
 
 export type ThoughtType = 'thinking' | 'planning' | 'executing' | 'tool_call' | 'result' | 'error' | 'decision'
 
-export type ActivityAction = 'search' | 'email_sent' | 'file_created' | 'skill_used' | 'error' | 'heartbeat'
+export type ActivityAction = string
 
 export type Creator = 'erik' | 'alva'
 

@@ -1,6 +1,6 @@
 'use client'
 
-import type { ActivityLog as ActivityLogType, ActivityAction } from '@/lib/types'
+import type { ActivityLog as ActivityLogType } from '@/lib/types'
 import { formatTime } from '@/utils/formatters'
 import clsx from 'clsx'
 
@@ -8,17 +8,26 @@ interface ActivityLogProps {
   activities: ActivityLogType[]
 }
 
-const actionConfig: Record<ActivityAction, { icon: string; color: string }> = {
+const actionConfig: Record<string, { icon: string; color: string }> = {
   search: { icon: '🔍', color: 'text-accent' },
   email_sent: { icon: '📧', color: 'text-success' },
   file_created: { icon: '📄', color: 'text-warning' },
   skill_used: { icon: '🔧', color: 'text-thought' },
   error: { icon: '❌', color: 'text-error' },
   heartbeat: { icon: '💓', color: 'text-text-secondary' },
+  task_started: { icon: '🚀', color: 'text-accent' },
+  task_in_progress: { icon: '⏳', color: 'text-thought' },
+  task_completed: { icon: '✅', color: 'text-success' },
+  task_failed: { icon: '💥', color: 'text-error' },
+  task_cancelled: { icon: '🚫', color: 'text-text-secondary' },
+  step_completed: { icon: '✔️', color: 'text-success' },
+  plan_created: { icon: '📋', color: 'text-accent' },
 }
 
+const defaultConfig = { icon: '📌', color: 'text-text-secondary' }
+
 function ActivityItem({ activity, isNew }: { activity: ActivityLogType; isNew: boolean }) {
-  const config = actionConfig[activity.action]
+  const config = actionConfig[activity.action] || defaultConfig
 
   return (
     <div
