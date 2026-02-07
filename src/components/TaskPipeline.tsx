@@ -1,15 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import type { Task, TaskStatus } from '@/lib/types'
+import type { Task, TaskStatus, TaskStep } from '@/lib/types'
 import { formatDuration, formatRelativeTime } from '@/utils/formatters'
 import { NewTaskModal } from './NewTaskModal'
+import { TaskPlan } from './TaskPlan'
 import clsx from 'clsx'
 
 interface TaskPipelineProps {
   tasks: Task[]
+  taskSteps: TaskStep[]
   activeTaskId: string | null
   onCreateTask: (task: Partial<Task>) => Promise<void>
+  onDeleteTask: (taskId: string) => Promise<void>
 }
 
 const statusConfig: Record<TaskStatus, { label: string; bg: string; text: string }> = {
@@ -28,9 +31,30 @@ const priorityColors: Record<number, string> = {
   5: 'border-l-border',
 }
 
-function TaskCard({ task, isActive }: { task: Task; isActive: boolean }) {
+function TaskCard({
+  task,
+  steps,
+  isActive,
+  onDelete,
+}: {
+  task: Task
+  steps: TaskStep[]
+  isActive: boolean
+  onDelete: (taskId: string) => Promise<void>
+}) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [deleteState, setDeleteState] = useState<'idle' | 'confirm'>('idle')
   const status = statusConfig[task.status]
+
+  const handleDeleteClick = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (deleteState === 'idle') {
+      setDeleteState('confirm')
+      setTimeout(() => setDeleteState('idle'), 3000)
+    } else {
+      await onDelete(task.id)
+    }
+  }
 
   return (
     <div
@@ -44,12 +68,30 @@ function TaskCard({ task, isActive }: { task: Task; isActive: boolean }) {
     >
       <div className="p-3">
         <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="font-medium text-text-primary text-sm leading-tight line-clamp-2">
+          <h3 className="font-medium text-text-primary text-sm leading-tight line-clamp-2 flex-1">
             {task.title}
           </h3>
-          <span className={clsx('shrink-0 px-2 py-0.5 rounded text-xs font-medium', status.bg, status.text)}>
-            {status.label}
-          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className={clsx('px-2 py-0.5 rounded text-xs font-medium', status.bg, status.text)}>
+              {status.label}
+            </span>
+            <button
+              onClick={handleDeleteClick}
+              className={clsx(
+                'p-1 rounded transition-colors text-xs',
+                deleteState === 'confirm'
+                  ? 'bg-error/20 text-error'
+                  : 'hover:bg-error/10 text-text-secondary hover:text-error'
+              )}
+              title={deleteState === 'confirm' ? 'Klicka igen för att radera' : 'Ta bort'}
+            >
+              {deleteState === 'confirm' ? (
+                <span className="text-xs px-1">Ta bort?</span>
+              ) : (
+                <span>🗑️</span>
+              )}
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-3 text-xs text-text-secondary">
@@ -65,11 +107,14 @@ function TaskCard({ task, isActive }: { task: Task; isActive: boolean }) {
         </div>
       </div>
 
-      {isExpanded && (task.description || task.result || task.error) && (
-        <div className="px-3 pb-3 border-t border-border pt-2 space-y-2 animate-fade-in-up">
+      {isExpanded && (
+        <div className="px-3 pb-3 border-t border-border pt-2 space-y-3 animate-fade-in-up">
           {task.description && (
             <p className="text-sm text-text-secondary">{task.description}</p>
           )}
+
+          {steps.length > 0 && <TaskPlan steps={steps} />}
+
           {task.result && (
             <div className="p-2 bg-success/10 border border-success/20 rounded text-sm text-success">
               <span className="font-medium">Resultat:</span> {task.result}
@@ -86,8 +131,10 @@ function TaskCard({ task, isActive }: { task: Task; isActive: boolean }) {
   )
 }
 
-export function TaskPipeline({ tasks, activeTaskId, onCreateTask }: TaskPipelineProps) {
+export function TaskPipeline({ tasks, taskSteps, activeTaskId, onCreateTask, onDeleteTask }: TaskPipelineProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
+
+  const getStepsForTask = (taskId: string) => taskSteps.filter((s) => s.task_id === taskId)
 
   const inProgress = tasks.filter((t) => t.status === 'in_progress')
   const pending = tasks
@@ -139,7 +186,13 @@ export function TaskPipeline({ tasks, activeTaskId, onCreateTask }: TaskPipeline
               Pågår
             </h3>
             {inProgress.map((task) => (
-              <TaskCard key={task.id} task={task} isActive={task.id === activeTaskId} />
+              <TaskCard
+                key={task.id}
+                task={task}
+                steps={getStepsForTask(task.id)}
+                isActive={task.id === activeTaskId}
+                onDelete={onDeleteTask}
+              />
             ))}
           </div>
         )}
@@ -150,7 +203,13 @@ export function TaskPipeline({ tasks, activeTaskId, onCreateTask }: TaskPipeline
               I kö ({pending.length})
             </h3>
             {pending.map((task) => (
-              <TaskCard key={task.id} task={task} isActive={false} />
+              <TaskCard
+                key={task.id}
+                task={task}
+                steps={getStepsForTask(task.id)}
+                isActive={false}
+                onDelete={onDeleteTask}
+              />
             ))}
           </div>
         )}
@@ -161,7 +220,13 @@ export function TaskPipeline({ tasks, activeTaskId, onCreateTask }: TaskPipeline
               Nyligen klara
             </h3>
             {completed.map((task) => (
-              <TaskCard key={task.id} task={task} isActive={false} />
+              <TaskCard
+                key={task.id}
+                task={task}
+                steps={getStepsForTask(task.id)}
+                isActive={false}
+                onDelete={onDeleteTask}
+              />
             ))}
           </div>
         )}

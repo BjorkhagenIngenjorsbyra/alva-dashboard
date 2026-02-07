@@ -2,25 +2,28 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Task, ThoughtLog, ActivityLog, AlvaStatus, DashboardStats } from '@/lib/types'
+import type { Task, ThoughtLog, ActivityLog, TaskStep, AlvaStatus, DashboardStats } from '@/lib/types'
 import { getMinutesSince } from '@/utils/formatters'
 
 interface UseDashboardReturn {
   tasks: Task[]
   thoughts: ThoughtLog[]
   activities: ActivityLog[]
+  taskSteps: TaskStep[]
   activeTask: Task | null
   alvaStatus: AlvaStatus
   lastActive: string | null
   stats: DashboardStats
   isLoading: boolean
   createTask: (task: Partial<Task>) => Promise<void>
+  deleteTask: (taskId: string) => Promise<void>
 }
 
 export function useRealtimeDashboard(): UseDashboardReturn {
   const [tasks, setTasks] = useState<Task[]>([])
   const [thoughts, setThoughts] = useState<ThoughtLog[]>([])
   const [activities, setActivities] = useState<ActivityLog[]>([])
+  const [taskSteps, setTaskSteps] = useState<TaskStep[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   const supabase = createClient()
@@ -28,7 +31,7 @@ export function useRealtimeDashboard(): UseDashboardReturn {
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true)
 
-    const [tasksResult, thoughtsResult, activitiesResult] = await Promise.all([
+    const [tasksResult, thoughtsResult, activitiesResult, stepsResult] = await Promise.all([
       supabase
         .from('tasks')
         .select('*')
@@ -42,11 +45,16 @@ export function useRealtimeDashboard(): UseDashboardReturn {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50),
+      supabase
+        .from('task_steps')
+        .select('*')
+        .order('sort_order', { ascending: true }),
     ])
 
     if (tasksResult.data) setTasks(tasksResult.data)
     if (thoughtsResult.data) setThoughts(thoughtsResult.data)
     if (activitiesResult.data) setActivities(activitiesResult.data)
+    if (stepsResult.data) setTaskSteps(stepsResult.data)
 
     setIsLoading(false)
   }, [supabase])
@@ -74,6 +82,13 @@ export function useRealtimeDashboard(): UseDashboardReturn {
           )
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'tasks' },
+        (payload) => {
+          setTasks((prev) => prev.filter((task) => task.id !== (payload.old as Task).id))
+        }
+      )
       .subscribe()
 
     const thoughtsChannel = supabase
@@ -98,10 +113,40 @@ export function useRealtimeDashboard(): UseDashboardReturn {
       )
       .subscribe()
 
+    const stepsChannel = supabase
+      .channel('steps-changes')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'task_steps' },
+        (payload) => {
+          setTaskSteps((prev) => [...prev, payload.new as TaskStep])
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'task_steps' },
+        (payload) => {
+          setTaskSteps((prev) =>
+            prev.map((step) =>
+              step.id === (payload.new as TaskStep).id ? (payload.new as TaskStep) : step
+            )
+          )
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'task_steps' },
+        (payload) => {
+          setTaskSteps((prev) => prev.filter((step) => step.id !== (payload.old as TaskStep).id))
+        }
+      )
+      .subscribe()
+
     return () => {
       supabase.removeChannel(tasksChannel)
       supabase.removeChannel(thoughtsChannel)
       supabase.removeChannel(activitiesChannel)
+      supabase.removeChannel(stepsChannel)
     }
   }, [supabase, fetchInitialData])
 
@@ -139,15 +184,21 @@ export function useRealtimeDashboard(): UseDashboardReturn {
     })
   }
 
+  const deleteTask = async (taskId: string) => {
+    await supabase.from('tasks').delete().eq('id', taskId)
+  }
+
   return {
     tasks,
     thoughts,
     activities,
+    taskSteps,
     activeTask,
     alvaStatus,
     lastActive,
     stats,
     isLoading,
     createTask,
+    deleteTask,
   }
 }

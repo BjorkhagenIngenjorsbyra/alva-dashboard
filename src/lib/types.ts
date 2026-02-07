@@ -55,3 +55,17 @@ export interface DashboardStats {
 }
 
 export type AlvaStatus = 'online' | 'thinking' | 'offline'
+
+export type TaskStepStatus = 'pending' | 'in_progress' | 'completed' | 'skipped'
+
+export interface TaskStep {
+  id: string
+  task_id: string
+  parent_step_id: string | null
+  title: string
+  status: TaskStepStatus
+  sort_order: number
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
+}

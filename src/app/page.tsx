@@ -12,12 +12,14 @@ export default function Dashboard() {
     tasks,
     thoughts,
     activities,
+    taskSteps,
     activeTask,
     alvaStatus,
     lastActive,
     stats,
     isLoading,
     createTask,
+    deleteTask,
   } = useRealtimeDashboard()
 
   if (isLoading) {
@@ -38,8 +40,10 @@ export default function Dashboard() {
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         <TaskPipeline
           tasks={tasks}
+          taskSteps={taskSteps}
           activeTaskId={activeTask?.id || null}
           onCreateTask={createTask}
+          onDeleteTask={deleteTask}
         />
 
         <ThoughtStream
